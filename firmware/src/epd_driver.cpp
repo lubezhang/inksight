@@ -1,7 +1,188 @@
 #include "epd_driver.h"
 #include "config.h"
 
-#if defined(EPD_PANEL_42_SSD1683_BW) || defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52) || defined(EPD_PANEL_42_SSD1608_BW)
+#if defined(EPD_PANEL_42_SSD1619A_2IC) || defined(EPD_PANEL_42_SSD1608_2IC)
+
+// ── Hanshow HINK 4.2" dual-IC panel (SSD1608 / SSD1619A, 400x300 B/W) ──
+// The panel has TWO driver ICs (chip cascade): each drives 200 columns.
+//   - PIN_EPD_CS   (GPIO7) selects the LEFT  IC (main chip)
+//   - PIN_EPD_CS2  (GPIO5) selects the RIGHT IC (slave chip)
+// Init: pull BOTH CS low and program both ICs together.
+// Display: write left 7500B (200x300/8) via CS, then right 7500B via CS2.
+// Refresh: pull both CS low, 0x22=0xC7, 0x20, wait busy.
+// Reference: Hackaday MagicPaper HINK-E042A03-A1 + LingShunLab teardown.
+
+static void spiWriteByte(uint8_t data) {
+    for (int i = 0; i < 8; i++) {
+        digitalWrite(PIN_EPD_MOSI, (data & 0x80) ? HIGH : LOW);
+        data <<= 1;
+        digitalWrite(PIN_EPD_SCK, HIGH);
+        digitalWrite(PIN_EPD_SCK, LOW);
+    }
+}
+
+static void epdSendCommand(uint8_t cmd) {
+    digitalWrite(PIN_EPD_DC, LOW);   // DC low = command
+    spiWriteByte(cmd);
+}
+
+static void epdSendData(uint8_t data) {
+    digitalWrite(PIN_EPD_DC, HIGH);  // DC high = data
+    spiWriteByte(data);
+}
+
+static void epdSendCmdData(uint8_t cmd, const uint8_t *data, int len) {
+    epdSendCommand(cmd);
+    for (int i = 0; i < len; i++) epdSendData(data[i]);
+}
+
+static void epdWaitBusy(unsigned long maxMs = 30000) {
+    unsigned long t0 = millis();
+    while (digitalRead(PIN_EPD_BUSY) == HIGH) {  // busy = HIGH (Solomon convention)
+        delay(10);
+        if (millis() - t0 > maxMs) {
+            Serial.println("EPD busy TIMEOUT!");
+            return;
+        }
+    }
+}
+
+static void epdReset() {
+    digitalWrite(PIN_EPD_RST, HIGH); delay(100);
+    digitalWrite(PIN_EPD_RST, LOW);  delay(2);
+    digitalWrite(PIN_EPD_RST, HIGH); delay(100);
+}
+
+// LUT from the HINK-E042A03-A1 reference (MagicPaper project)
+static const uint8_t EPD_lut[30] = {
+    0x66, 0xa6, 0x6a, 0x66, 0x55, 0x99, 0xaa, 0x66,
+    0x55, 0x95, 0xaa, 0xaa, 0x59, 0x55, 0xaa, 0x55,
+    0x88, 0x11, 0x11, 0x88, 0xf8, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0x8f, 0x8f,
+};
+
+static void epdCsBothLow()  { digitalWrite(PIN_EPD_CS,  LOW); digitalWrite(PIN_EPD_CS2, LOW); }
+static void epdCsBothHigh() { digitalWrite(PIN_EPD_CS, HIGH); digitalWrite(PIN_EPD_CS2, HIGH); }
+
+void gpioInit() {
+    pinMode(PIN_EPD_BUSY, INPUT);
+    pinMode(PIN_EPD_RST,  OUTPUT);
+    pinMode(PIN_EPD_DC,   OUTPUT);
+    pinMode(PIN_EPD_CS,   OUTPUT);
+    pinMode(PIN_EPD_CS2,  OUTPUT);
+    pinMode(PIN_EPD_SCK,  OUTPUT);
+    pinMode(PIN_EPD_MOSI, OUTPUT);
+    pinMode(PIN_CFG_BTN,  INPUT_PULLUP);
+    digitalWrite(PIN_EPD_RST, HIGH);
+    digitalWrite(PIN_EPD_CS,  HIGH);
+    digitalWrite(PIN_EPD_CS2, HIGH);
+    digitalWrite(PIN_EPD_SCK, LOW);
+}
+
+void epdInit() {
+    epdReset();
+    epdCsBothLow();
+    epdSendCommand(0x12);                    // Software Reset
+    epdWaitBusy();
+    uint8_t gdo[3]  = {0x2b, 0x01, 0x00};    // Gate 0..299 (300 lines)
+    uint8_t sdlp[1] = {0x16};                // Dummy line
+    uint8_t sglw[1] = {0x08};                // Gate line width
+    uint8_t duc[1]  = {0x83};                // Display Update Control 1
+    uint8_t bwc[1]  = {0x33};                // Border Waveform
+    uint8_t dem[1]  = {0x01};                // Data Entry Mode
+    uint8_t xrng[2] = {0x00, 0x18};          // RAM X range: 0..24 (200 cols per IC)
+    uint8_t yrng[4] = {0x00, 0x00, 0x2b, 0x01}; // RAM Y range: 0..299
+    uint8_t vcom[1] = {0xb9};                // VCOM voltage
+    epdSendCmdData(0x01, gdo, 3);
+    epdSendCmdData(0x3a, sdlp, 1);
+    epdSendCmdData(0x3b, sglw, 1);
+    epdSendCmdData(0x21, duc, 1);
+    epdSendCmdData(0x3c, bwc, 1);
+    epdSendCmdData(0x11, dem, 1);
+    epdSendCmdData(0x44, xrng, 2);
+    epdSendCmdData(0x45, yrng, 4);
+    epdSendCmdData(0x2c, vcom, 1);
+    epdSendCommand(0x32);                    // Load LUT
+    for (int i = 0; i < 30; i++) epdSendData(EPD_lut[i]);
+    epdCsBothHigh();
+}
+
+void epdInitFast() { epdInit(); }  // no separate fast path on SSD1619A
+
+// Write 7500 bytes (200 cols x 300 rows) of RAM to the IC selected by csPin
+static void epdWriteRamToCs(int csPin, const uint8_t *buf) {
+    digitalWrite(csPin, LOW);
+    uint8_t xc[1] = {0x00};
+    uint8_t yc[2] = {0x00, 0x00};
+    epdSendCmdData(0x4e, xc, 1);             // RAM X counter
+    epdSendCmdData(0x4f, yc, 2);             // RAM Y counter
+    epdSendCommand(0x24);                    // Write Black/White RAM
+    for (int i = 0; i < 7500; i++) epdSendData(buf[i]);
+    digitalWrite(csPin, HIGH);
+}
+
+void epdDisplay(const uint8_t *image) {
+    epdInit();
+    int w = W / 8;        // 50 bytes per row (400px)
+    int half = w / 2;     // 25 bytes per row per IC (200px)
+    static uint8_t halfBuf[7500];
+
+    // Left half: first 25 bytes of each row -> main IC (CS)
+    int idx = 0;
+    for (int j = 0; j < H; j++)
+        for (int i = 0; i < half; i++)
+            halfBuf[idx++] = image[j * w + i];
+    epdWriteRamToCs(PIN_EPD_CS, halfBuf);
+
+    // Right half: last 25 bytes of each row -> slave IC (CS2)
+    idx = 0;
+    for (int j = 0; j < H; j++)
+        for (int i = 0; i < half; i++)
+            halfBuf[idx++] = image[j * w + half + i];
+    epdWriteRamToCs(PIN_EPD_CS2, halfBuf);
+
+    epdCsBothLow();
+    uint8_t duc2[1] = {0xc7};                // Display Update Control 2: full update
+    epdSendCmdData(0x22, duc2, 1);
+    epdSendCommand(0x20);                    // Master Activation
+    epdCsBothHigh();
+    epdWaitBusy();
+}
+
+void epdDisplay2bpp(const uint8_t *image2bpp) {
+    (void)image2bpp;
+    epdDisplay(imgBuf);
+}
+
+void epdDisplayDeepClear(const uint8_t *image) {
+    epdDisplay(image);
+}
+
+void epdDisplayFast(const uint8_t *image) {
+    epdDisplay(image);
+}
+
+bool epdSupportsPartialRefresh() { return false; }
+
+void epdPartialDisplay(uint8_t *data, int xStart, int yStart, int xEnd, int yEnd) {
+    (void)data; (void)xStart; (void)yStart; (void)xEnd; (void)yEnd;
+    epdDisplay(imgBuf);
+}
+
+void epdPartialDisplayWithOld(uint8_t *data, const uint8_t *oldData, int xStart, int yStart, int xEnd, int yEnd) {
+    (void)data; (void)oldData; (void)xStart; (void)yStart; (void)xEnd; (void)yEnd;
+    epdDisplay(imgBuf);
+}
+
+void epdSleep() {
+    epdCsBothLow();
+    epdSendCommand(0x10);  // Deep Sleep Mode
+    epdSendData(0x01);
+    epdCsBothHigh();
+    delay(200);
+}
+
+#elif defined(EPD_PANEL_42_SSD1683_BW) || defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
 
 // ── Software SPI (bit-bang) for 4.2" panels ──
 // Avoids Busy Timeout on ESP32-C3 with non-default pins; no GxEPD2 dependency.
@@ -58,7 +239,7 @@ static void epdReset() {
     delay(20);
     digitalWrite(PIN_EPD_RST, LOW);  delay(40);
     digitalWrite(PIN_EPD_RST, HIGH); delay(50);
-#elif defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_SSD1608_BW)
+#elif defined(EPD_PANEL_42_DKE_RY683)
     digitalWrite(PIN_EPD_RST, LOW);  delay(10);
     digitalWrite(PIN_EPD_RST, HIGH); delay(10);
 #else
@@ -92,133 +273,6 @@ static void epdSetFullWindow() {
     epdSendData(0x00);
 }
 
-#if defined(EPD_PANEL_42_SSD1608_BW)
-// ── SSD1608: Hanshow HINK-E042A03 400x300 (salvaged Stellar-XL ESL panel) ──
-// Implemented from the panel datasheet (HINK-E042A03 spec, §6/§13.2):
-// the FPC carries TWO cascaded SSD1608 dies with separate chip selects —
-// master on PIN_EPD_CS (FPC pin 12, CS#) and slave on PIN_EPD_CS2
-// (FPC pin 1, CS1#). Each die drives one 200x300 half (RAM X window
-// 0x00-0x18 = 25 bytes), so a frame is written as two 7500-byte halves.
-// Config commands are broadcast (both CS low). Per the datasheet flow:
-// left half counters+data go to the master only, right half counters go
-// to the slave only while its data phase asserts both chip selects, and
-// the update command is broadcast so both halves refresh together.
-// VCOM and waveform LUT are per-batch values that Holitech does not
-// publish; the generic SSD1608 values below (same as Waveshare epd2in9 /
-// GxEPD2_290) are used. Contrast/ghosting off on real hardware: tune
-// 0x2C VCOM and LUT_SSD1608_FULL first.
-
-#ifndef PIN_EPD_CS2
-#define PIN_EPD_CS2 5  // Slave chip select (CS1#); wire driver-board CS2 here
-#endif
-
-#define SSD1608_MASTER 0x01
-#define SSD1608_SLAVE  0x02
-#define SSD1608_BOTH   0x03
-
-static const uint8_t LUT_SSD1608_FULL[30] = {
-    0x50, 0xAA, 0x55, 0xAA, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0xFF, 0xFF, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-};
-
-static void ssd1608Select(uint8_t target) {
-    digitalWrite(PIN_EPD_CS,  (target & SSD1608_MASTER) ? LOW : HIGH);
-    digitalWrite(PIN_EPD_CS2, (target & SSD1608_SLAVE)  ? LOW : HIGH);
-}
-
-static void ssd1608SendCommand(uint8_t target, uint8_t cmd) {
-    digitalWrite(PIN_EPD_DC, LOW);   // DC low = command
-    ssd1608Select(target);
-    spiWriteByte(cmd);
-    ssd1608Select(0);
-}
-
-static void ssd1608SendData(uint8_t target, uint8_t data) {
-    digitalWrite(PIN_EPD_DC, HIGH);  // DC high = data
-    ssd1608Select(target);
-    spiWriteByte(data);
-    ssd1608Select(0);
-}
-
-static void epdInitSSD1608() {
-    epdReset();  // datasheet timing: RES# low 10ms, high 10ms (see epdReset)
-    epdWaitBusy();
-
-    // Broadcast configuration to both cascaded dies.
-    ssd1608SendCommand(SSD1608_BOTH, 0x01);  // Gate number / scan order
-    ssd1608SendData(SSD1608_BOTH, (H - 1) & 0xFF);        //   0x2B
-    ssd1608SendData(SSD1608_BOTH, ((H - 1) >> 8) & 0xFF); //   0x01
-    ssd1608SendData(SSD1608_BOTH, 0x00);
-
-    ssd1608SendCommand(SSD1608_BOTH, 0x0C);  // Booster Soft Start Control
-    ssd1608SendData(SSD1608_BOTH, 0xD7);
-    ssd1608SendData(SSD1608_BOTH, 0xD6);
-    ssd1608SendData(SSD1608_BOTH, 0x9D);
-
-    ssd1608SendCommand(SSD1608_BOTH, 0x3A);  // Dummy line period (50Hz scan)
-    ssd1608SendData(SSD1608_BOTH, 0x16);
-
-    ssd1608SendCommand(SSD1608_BOTH, 0x3B);  // Gate line width
-    ssd1608SendData(SSD1608_BOTH, 0x08);
-
-    ssd1608SendCommand(SSD1608_BOTH, 0x11);  // Data entry sequence: Y+, X-
-    ssd1608SendData(SSD1608_BOTH, 0x01);
-
-    ssd1608SendCommand(SSD1608_BOTH, 0x44);  // RAM X start/end (per die)
-    ssd1608SendData(SSD1608_BOTH, 0x00);
-    ssd1608SendData(SSD1608_BOTH, ((W / 2) - 1) / 8);  //   0x18 = 200 px
-
-    ssd1608SendCommand(SSD1608_BOTH, 0x45);  // RAM Y start/end
-    ssd1608SendData(SSD1608_BOTH, (H - 1) & 0xFF);        //   start 0x012B
-    ssd1608SendData(SSD1608_BOTH, ((H - 1) >> 8) & 0xFF);
-    ssd1608SendData(SSD1608_BOTH, 0x00);                  //   end 0x0000
-    ssd1608SendData(SSD1608_BOTH, 0x00);
-
-    ssd1608SendCommand(SSD1608_BOTH, 0x2C);  // VCOM (generic; per-batch differs)
-    ssd1608SendData(SSD1608_BOTH, 0xA8);
-
-    ssd1608SendCommand(SSD1608_BOTH, 0x32);  // Waveform LUT (generic SSD1608)
-    for (int i = 0; i < 30; i++) ssd1608SendData(SSD1608_BOTH, LUT_SSD1608_FULL[i]);
-}
-
-static void ssd1608SetCounters(uint8_t target) {
-    ssd1608SendCommand(target, 0x4E);  // RAM X address counter
-    ssd1608SendData(target, 0x00);
-    ssd1608SendCommand(target, 0x4F);  // RAM Y address counter
-    ssd1608SendData(target, (H - 1) & 0xFF);
-    ssd1608SendData(target, ((H - 1) >> 8) & 0xFF);
-}
-
-// Write one 200x300 half: counters go to counterTarget, the 0x24 data
-// phase uses dataTarget (the datasheet flow asserts both CS for the
-// right half's data phase). image==nullptr writes `fill` instead.
-static void ssd1608WriteHalf(uint8_t counterTarget, uint8_t dataTarget,
-                             const uint8_t *image, int byteOffset, uint8_t fill) {
-    ssd1608SetCounters(counterTarget);
-    ssd1608SendCommand(dataTarget, 0x24);  // Write B/W RAM
-    int rowBytes = W / 8;
-    int halfBytes = (W / 2) / 8;  // 25 bytes = 7500 per half
-    for (int j = 0; j < H; j++)
-        for (int i = 0; i < halfBytes; i++)
-            ssd1608SendData(dataTarget, image ? image[j * rowBytes + byteOffset + i] : fill);
-}
-
-static void ssd1608Update() {
-    ssd1608SendCommand(SSD1608_BOTH, 0x22);  // Display Update Control 2
-    ssd1608SendData(SSD1608_BOTH, 0xC7);     //   Use waveform from RAM
-    ssd1608SendCommand(SSD1608_BOTH, 0x20);  // Master Activation
-    epdWaitBusy();
-}
-
-static void epdDisplaySSD1608(const uint8_t *image) {
-    epdInitSSD1608();
-    ssd1608WriteHalf(SSD1608_MASTER, SSD1608_MASTER, image, 0, 0);              // left half
-    ssd1608WriteHalf(SSD1608_SLAVE, SSD1608_BOTH, image, (W / 2) / 8, 0);       // right half
-    ssd1608Update();
-}
-#endif
-
 // ── GPIO initialization ─────────────────────────────────────
 
 void gpioInit() {
@@ -229,10 +283,6 @@ void gpioInit() {
     pinMode(PIN_EPD_SCK,  OUTPUT);
     pinMode(PIN_EPD_MOSI, OUTPUT);
     pinMode(PIN_CFG_BTN,  INPUT_PULLUP);
-#if defined(EPD_PANEL_42_SSD1608_BW)
-    pinMode(PIN_EPD_CS2, OUTPUT);
-    digitalWrite(PIN_EPD_CS2, HIGH);
-#endif
     digitalWrite(PIN_EPD_RST, HIGH);
     digitalWrite(PIN_EPD_CS,  HIGH);
     digitalWrite(PIN_EPD_SCK, LOW);
@@ -241,9 +291,7 @@ void gpioInit() {
 // ── EPD full init (standard mode) ──
 
 void epdInit() {
-#if defined(EPD_PANEL_42_SSD1608_BW)
-    epdInitSSD1608();
-#elif defined(EPD_PANEL_42_DKE_RY683)
+#if defined(EPD_PANEL_42_DKE_RY683)
     Serial.printf("[EPD-init] begin BUSY=%d\n", digitalRead(PIN_EPD_BUSY));
     epdReset();
     epdWaitBusy();
@@ -362,9 +410,7 @@ void epdInit() {
 // 0x6E = ~1.5s refresh, 0x5A = ~1s refresh.
 
 void epdInitFast() {
-#if defined(EPD_PANEL_42_SSD1608_BW)
-    epdInitSSD1608();  // no fast-refresh LUT on this panel; same full init
-#elif defined(EPD_PANEL_42_DKE_RY683)
+#if defined(EPD_PANEL_42_DKE_RY683)
     epdInit();
 #elif defined(EPD_PANEL_42_GDEM042F52)
     delay(100);
@@ -555,8 +601,6 @@ void epdDisplay(const uint8_t *image) {
         }
     }
     epdSend2bppAndRefresh(colorBuf);
-#elif defined(EPD_PANEL_42_SSD1608_BW)
-    epdDisplaySSD1608(image);
 #else
     epdInit();
 
@@ -595,15 +639,6 @@ void epdDisplay2bpp(const uint8_t *image2bpp) {
 void epdDisplayDeepClear(const uint8_t *image) {
 #if defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
     epdDisplay(image);
-#elif defined(EPD_PANEL_42_SSD1608_BW)
-    for (int pass = 0; pass < 4; pass++) {
-        uint8_t fill = (pass % 2 == 0) ? 0x00 : 0xFF;
-        epdInitSSD1608();
-        ssd1608WriteHalf(SSD1608_MASTER, SSD1608_MASTER, nullptr, 0, fill);
-        ssd1608WriteHalf(SSD1608_SLAVE, SSD1608_BOTH, nullptr, (W / 2) / 8, fill);
-        ssd1608Update();
-    }
-    epdDisplaySSD1608(image);
 #else
     epdInit();
     int w = W / 8;
@@ -663,10 +698,6 @@ void epdDisplayFast(const uint8_t *image) {
     epdPowerOff();
 #elif defined(EPD_PANEL_42_DKE_RY683)
     epdDisplay(image);
-#elif defined(EPD_PANEL_42_SSD1608_BW)
-    // No validated fast/partial waveform for this salvaged panel yet:
-    // fast refresh falls back to the full-refresh path.
-    epdDisplaySSD1608(image);
 #else
     epdInitFast();
 
@@ -696,7 +727,7 @@ void epdPartialDisplay(uint8_t *data, int xStart, int yStart, int xEnd, int yEnd
 }
 
 bool epdSupportsPartialRefresh() {
-#if defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52) || defined(EPD_PANEL_42_SSD1608_BW)
+#if defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
     return false;
 #else
     return true;
@@ -704,7 +735,7 @@ bool epdSupportsPartialRefresh() {
 }
 
 void epdPartialDisplayWithOld(uint8_t *data, const uint8_t *oldData, int xStart, int yStart, int xEnd, int yEnd) {
-#if defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52) || defined(EPD_PANEL_42_SSD1608_BW)
+#if defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
     (void)data;
     (void)oldData;
     (void)xStart;
@@ -775,10 +806,6 @@ void epdSleep() {
 #if defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
     epdSendCommand(0x07);
     epdSendData(0xA5);
-    delay(200);
-#elif defined(EPD_PANEL_42_SSD1608_BW)
-    ssd1608SendCommand(SSD1608_BOTH, 0x10);  // Deep Sleep Mode (both dies)
-    ssd1608SendData(SSD1608_BOTH, 0x01);     //   Enter deep sleep
     delay(200);
 #else
     epdSendCommand(0x10);  // Deep Sleep Mode
@@ -1000,7 +1027,7 @@ void epdSleep() {
   GxEPD2_BW<GxEPD2_750_T7, GxEPD2_750_T7::HEIGHT / 4> display(
       GxEPD2_750_T7(PIN_EPD_CS, PIN_EPD_DC, PIN_EPD_RST, PIN_EPD_BUSY));
 #else
-  #error "No EPD panel type defined. Use -DEPD_PANEL_42_SSD1683_BW, -DEPD_PANEL_42_SSD1608_BW, -DEPD_PANEL_42_DKE_RY683, -DEPD_PANEL_42_GDEM042F52, -DEPD_PANEL_42_GXEPD2_T81, -DEPD_PANEL_42_GXEPD2_GYE042A87, -DEPD_PANEL_42_GXEPD2_420, -DEPD_PANEL_42_GXEPD2_M01, -DEPD_PANEL_29, -DEPD_PANEL_583_UC8179, -DEPD_PANEL_583, or -DEPD_PANEL_75"
+  #error "No EPD panel type defined. Use -DEPD_PANEL_42_SSD1683_BW, -DEPD_PANEL_42_DKE_RY683, -DEPD_PANEL_42_GDEM042F52, -DEPD_PANEL_42_GXEPD2_T81, -DEPD_PANEL_42_GXEPD2_GYE042A87, -DEPD_PANEL_42_GXEPD2_420, -DEPD_PANEL_42_GXEPD2_M01, -DEPD_PANEL_29, -DEPD_PANEL_583_UC8179, -DEPD_PANEL_583, or -DEPD_PANEL_75"
 #endif
 
 static bool _initialized = false;
