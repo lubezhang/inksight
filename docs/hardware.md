@@ -67,14 +67,6 @@
 
 但如果你只是第一次搭建，建议直接使用默认的 **4.2寸方案**。
 
-### 实验性：汉朔 Stellar-XL 拆机屏（SSD1608）
-
-二手汉朔 Stellar-XL 电子价签里拆出的 4.2 寸屏（屏体型号 HINK-E042A03、400×300、24pin FPC）使用 **SSD1608** 驱动 IC，与上面 SSD1683 方案不兼容，现已提供实验性支持：
-
-- **固件环境**：`epd_42_hanshow_ssd1608_c3_std`（ESP32-C3 标准板）或 `epd_42_hanshow_ssd1608_c3_promini`（Pro mini）
-- **用法**：弃用汉朔原 MSP430 主板，裸屏经通用 24pin SPI 驱动板/转接板接 ESP32-C3。这块屏是**双 SSD1608 级联**（左右半屏各一片驱动 IC），比 SSD1683 方案多接一根片选：驱动板 **CS1 接 GPIO7（主片 CS#）、CS2 接 GPIO5（从片 CS1#）**，其余线与 ESP32-C3 Profile 相同（MOSI6/SCK4/DC1/RST2/BUSY10）
-- **注意**：Stellar-XL 同名不同屏，另有 UC8176 版本，买屏/拆屏时先确认屏体丝印或驱动 IC 再选固件；本驱动暂不支持局部/快速刷新（会自动回退全屏刷新）；VCOM 与波形表各批次不同且原厂未公开，现用 SSD1608 通用值，如对比度/残影异常，优先调整 `epd_driver.cpp` 中的 `LUT_SSD1608_FULL` 与 VCOM（0x2C）；若屏幕完全无反应，也检查驱动板的 RESE 采样电阻档位
-
 ## 4. 引脚定义
 
 当前引脚定义位于：`firmware/src/config.h`
