@@ -1,7 +1,191 @@
 #include "epd_driver.h"
 #include "config.h"
 
-#if defined(EPD_PANEL_42_SSD1619A_2IC) || defined(EPD_PANEL_42_SSD1608_2IC)
+#if defined(EPD_PANEL_42_WFH0420CZ11_UC8154_2IC)
+
+// WFH0420CZ11 / WF0420T1PCZ11: two UC8154s, each driving 200x300.
+// Baseline registers and "fw" LUTs: WFH0420CZ11_技术文档.md, sections 4-6.
+// Reference: https://github.com/dotnfc/EPD_mpy_efont/blob/master/examples/panel/epd_cz11.py
+// CS1 selects the left half; CS2 selects the right half. BUSY is active LOW.
+static_assert(W == 400 && H == 300 && EPD_BPP == 1,
+              "WFH0420CZ11 requires a 400x300 monochrome framebuffer");
+static_assert(PIN_EPD_CS != PIN_EPD_CS2, "UC8154 requires two separate CS pins");
+
+static bool epdAwake = false;
+static bool epdReady = false;
+
+static const uint8_t UC8154_LUT_VCOM[15] = {
+    0x19, 0x1e, 0x04, 0x28, 0x28, 0x05, 0x1e, 0x19, 0x04,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+static const uint8_t UC8154_LUT_WHITE[15] = {
+    0x19, 0x5e, 0x04, 0xa8, 0x68, 0x05, 0x9e, 0x19, 0x04,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+static const uint8_t UC8154_LUT_BLACK[15] = {
+    0x99, 0x9e, 0x04, 0xa8, 0x68, 0x05, 0x5e, 0x59, 0x04,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static void epdSelect(bool left, bool right) {
+    digitalWrite(PIN_EPD_CS, left ? LOW : HIGH);
+    digitalWrite(PIN_EPD_CS2, right ? LOW : HIGH);
+}
+
+static void spiWriteByte(uint8_t data) {
+    for (int bit = 7; bit >= 0; --bit) {
+        digitalWrite(PIN_EPD_MOSI, (data & (1 << bit)) ? HIGH : LOW);
+        digitalWrite(PIN_EPD_SCK, HIGH);
+        digitalWrite(PIN_EPD_SCK, LOW);
+    }
+}
+
+// All commands go to both ICs. Only the image payload selects one IC at a time.
+static void epdSendCommand(uint8_t cmd, const uint8_t *data = nullptr, size_t len = 0) {
+    digitalWrite(PIN_EPD_DC, LOW);
+    epdSelect(true, true);
+    spiWriteByte(cmd);
+    epdSelect(false, false);
+    if (len > 0) {
+        digitalWrite(PIN_EPD_DC, HIGH);
+        epdSelect(true, true);
+        for (size_t i = 0; i < len; ++i) spiWriteByte(data[i]);
+        epdSelect(false, false);
+    }
+}
+
+static void epdSendValue(uint8_t cmd, uint8_t value) {
+    epdSendCommand(cmd, &value, 1);
+}
+
+static bool epdWaitBusy(const char *phase, unsigned long timeoutMs, unsigned long fallbackMs) {
+    unsigned long start = millis();
+    // BUSY may assert after the command. Observe it before deciding it stayed idle.
+    delay(1);
+    while (digitalRead(PIN_EPD_BUSY) == HIGH && millis() - start < 50) delay(1);
+    if (digitalRead(PIN_EPD_BUSY) == HIGH) {
+        Serial.printf("[UC8154] %s: BUSY not asserted, waiting %lu ms\n", phase, fallbackMs);
+        delay(fallbackMs);
+    }
+    while (digitalRead(PIN_EPD_BUSY) == LOW) {
+        if (millis() - start >= timeoutMs) {
+            Serial.printf("[UC8154] %s: BUSY timeout\n", phase);
+            return false;
+        }
+        delay(10);
+    }
+    Serial.printf("[UC8154] %s: %lu ms\n", phase, millis() - start);
+    return true;
+}
+
+void gpioInit() {
+    pinMode(PIN_EPD_CS, OUTPUT);
+    pinMode(PIN_EPD_CS2, OUTPUT);
+    epdSelect(false, false);
+    pinMode(PIN_EPD_DC, OUTPUT);
+    pinMode(PIN_EPD_RST, OUTPUT);
+    pinMode(PIN_EPD_SCK, OUTPUT);
+    pinMode(PIN_EPD_MOSI, OUTPUT);
+    pinMode(PIN_EPD_BUSY, INPUT_PULLUP);
+    pinMode(PIN_CFG_BTN, INPUT_PULLUP);
+    digitalWrite(PIN_EPD_RST, HIGH);
+    digitalWrite(PIN_EPD_SCK, LOW);
+}
+
+void epdInit() {
+    epdSleep();
+    epdReady = false;
+    digitalWrite(PIN_EPD_RST, HIGH); delay(10);
+    digitalWrite(PIN_EPD_RST, LOW); delay(10);
+    digitalWrite(PIN_EPD_RST, HIGH); delay(20);
+    epdAwake = true;
+
+    const uint8_t power[] = {0x07, 0x00, 0x0d, 0x00};
+    epdSendCommand(0x01, power, sizeof(power));
+    epdSendCommand(0x04);
+    if (!epdWaitBusy("PON", 3000, 200)) {
+        epdSleep();
+        return;
+    }
+    epdSendValue(0x00, 0xdf);
+    epdSendValue(0x50, 0x67);
+    epdSendValue(0x30, 0x2a);
+    const uint8_t resolution[] = {0xc8, 0x01, 0x2c};
+    epdSendCommand(0x61, resolution, sizeof(resolution));
+    epdSendValue(0x82, 0x0a);
+    epdSendCommand(0x20, UC8154_LUT_VCOM, sizeof(UC8154_LUT_VCOM));
+    epdSendCommand(0x21, UC8154_LUT_WHITE, sizeof(UC8154_LUT_WHITE));
+    for (uint8_t cmd = 0x22; cmd <= 0x24; ++cmd) {
+        epdSendCommand(cmd, UC8154_LUT_BLACK, sizeof(UC8154_LUT_BLACK));
+    }
+    epdReady = true;
+}
+
+// Expand four MSB-first monochrome pixels: white (1) -> 00, black (0) -> 11.
+static uint8_t epdExpandNibble(uint8_t pixels) {
+    static const uint8_t expanded[16] = {
+        0xff, 0xfc, 0xf3, 0xf0, 0xcf, 0xcc, 0xc3, 0xc0,
+        0x3f, 0x3c, 0x33, 0x30, 0x0f, 0x0c, 0x03, 0x00,
+    };
+    return expanded[pixels & 0x0f];
+}
+
+static void epdWriteHalf(const uint8_t *image, bool left) {
+    digitalWrite(PIN_EPD_DC, HIGH);
+    epdSelect(left, !left);
+    // Stream 15000 bytes per IC directly; no second framebuffer is needed.
+    for (int y = 0; y < H; ++y) {
+        const uint8_t *row = image + y * ROW_BYTES + (left ? 0 : ROW_BYTES / 2);
+        for (int x = 0; x < ROW_BYTES / 2; ++x) {
+            spiWriteByte(epdExpandNibble(row[x] >> 4));
+            spiWriteByte(epdExpandNibble(row[x]));
+        }
+        if ((y & 15) == 15) delay(0);  // Let the scheduler run during software SPI.
+    }
+    epdSelect(false, false);
+}
+
+void epdDisplay(const uint8_t *image) {
+    epdInit();  // The measured CZ11 sequence resets and reloads LUTs for every frame.
+    if (!epdReady) return;
+    epdSendCommand(0x10);
+    epdWriteHalf(image, true);
+    epdWriteHalf(image, false);
+    epdSendValue(0xe0, 0x01);
+    epdSendCommand(0x12);
+    delay(10);
+    epdWaitBusy("DRF", 30000, 20000);
+    epdSleep();  // Always power off, including after a refresh timeout.
+}
+
+void epdInitFast() { epdInit(); }
+void epdDisplayFast(const uint8_t *image) { epdDisplay(image); }
+void epdDisplayDeepClear(const uint8_t *image) { epdDisplay(image); }
+void epdDisplay2bpp(const uint8_t *image2bpp) {
+    (void)image2bpp;  // This is a B/W panel, not a 4-color framebuffer.
+    epdDisplay(imgBuf);
+}
+bool epdSupportsPartialRefresh() { return false; }
+void epdPartialDisplayWithOld(uint8_t *data, const uint8_t *oldData,
+                              int xStart, int yStart, int xEnd, int yEnd) {
+    (void)data; (void)oldData;
+    (void)xStart; (void)yStart; (void)xEnd; (void)yEnd;
+    epdDisplay(imgBuf);
+}
+void epdPartialDisplay(uint8_t *data, int xStart, int yStart, int xEnd, int yEnd) {
+    epdPartialDisplayWithOld(data, nullptr, xStart, yStart, xEnd, yEnd);
+}
+
+void epdSleep() {
+    if (!epdAwake) return;
+    epdReady = false;
+    epdSendCommand(0x02);
+    epdWaitBusy("POF", 3000, 200);
+    epdSendValue(0x07, 0xa5);
+    epdAwake = false;
+}
+
+#elif defined(EPD_PANEL_42_SSD1619A_2IC) || defined(EPD_PANEL_42_SSD1608_2IC)
 
 // ── Hanshow HINK 4.2" dual-IC panel (SSD1608 / SSD1619A, 400x300 B/W) ──
 // The panel has TWO driver ICs (chip cascade): each drives 200 columns.
