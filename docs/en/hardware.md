@@ -83,7 +83,7 @@ From `firmware/`, run `pio run -e epd_42_wfh0420cz11_uc8154_2ic_c3_std`. Flash `
 
 The driver uses the supplied technical document's tested `fw` LUTs and baseline registers (VCOM=0x0a, CCSET=0x01). It expands the 1-bit B/W framebuffer into the ICs' 2-bit format and powers off and deep-sleeps after each full refresh. Fast, partial, and deep-clear calls use the same full-refresh sequence. Serial logs report PON/DRF/POF timing and BUSY timeouts.
 
-The reference MicroPython test confirmed orientation and half-screen selection; this C++ port still needs hardware validation. The documented gray-white background issue remains unresolved. This panel needs a different driver from the single-UC8176 WFH0420CZ35 and dual-SSD1608 HINK-E042A03-A1.
+The reference MicroPython test confirmed orientation and half-screen selection. The C++ driver has been flashed to an ESP32-C3 standard board, and the user confirmed that hardware testing passed. The Pro Mini configuration has passed compilation but has not been tested on hardware. The documented gray-white background issue has not been confirmed resolved. This panel needs a different driver from the single-UC8176 WFH0420CZ35 and dual-SSD1608 HINK-E042A03-A1.
 
 Reference: [dotnfc CZ11 driver](https://github.com/dotnfc/EPD_mpy_efont/blob/master/examples/panel/epd_cz11.py). Run `python3 firmware/tests/test_uc8154.py` from the repository root for host GPIO/SPI, pixel mapping, shutdown, and timeout checks (requires a C++ compiler).
 

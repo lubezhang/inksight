@@ -88,7 +88,7 @@ pio run -e epd_42_wfh0420cz11_uc8154_2ic_c3_std
 
 驱动采用所提供技术文档中已实测可显示的 `fw` 波形和基线寄存器（VCOM=0x0a、CCSET=0x01），不采用未验证的电压或波形变体。项目保留 1 bit 黑白画布，发送时转换为芯片要求的 2 bit 数据；每次全屏刷新后掉电并深睡。快速和局部刷新均回退到全屏刷新，深度清屏入口也使用同一全刷序列。串口输出 PON、DRF、POF 耗时与 BUSY 超时信息。
 
-**验证范围**：参考 MicroPython 测试已确认左右分屏和显示方向；本项目的 C++ 移植仍需实机验证。技术文档记录的白底发灰问题尚未解决，不能保证恢复原厂白度。该屏与单 UC8176 的 WFH0420CZ35、双 SSD1608 的 HINK-E042A03-A1 使用不同驱动。
+**验证范围**：参考 MicroPython 测试已确认左右分屏和显示方向；本项目 C++ 驱动已在 ESP32-C3 标准版上烧录，用户确认实机测试通过。Pro Mini 配置已编译通过，尚未实机验证。技术文档记录的白底发灰问题尚未确认解决，不能保证恢复原厂白度。该屏与单 UC8176 的 WFH0420CZ35、双 SSD1608 的 HINK-E042A03-A1 使用不同驱动。
 
 参考：[dotnfc 的 CZ11 驱动](https://github.com/dotnfc/EPD_mpy_efont/blob/master/examples/panel/epd_cz11.py)。在主机上可运行 `python3 firmware/tests/test_uc8154.py`，验证 GPIO/SPI 输出、分屏像素、掉电及超时处理（需要 C++ 编译器）。
 
