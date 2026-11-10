@@ -361,7 +361,7 @@ localStorage.setItem('ink_lang',lang);
 applyLang();
 }
 
-var OFFICIAL_SERVER='https://web.inksight.site/';
+var OFFICIAL_SERVER='https://inksight-backend.lubezhang.cn/';
 var OFFICIAL_CONFIG_URL='https://inksight.lubezhang.cn/config';
 var LOCAL_DEFAULT_SERVER='http://本地服务IP:8080';
 var LOCAL_DEFAULT_FRONTEND_PORT='3000';

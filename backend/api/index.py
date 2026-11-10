@@ -26,7 +26,7 @@ def _build_allowed_hosts() -> list[str]:
         "inksight.lubezhang.cn",
         "www.inksight.site",
         "inksight.site",
-        "web.inksight.site",
+        "inksight-backend.lubezhang.cn",
         "localhost",
         "127.0.0.1",
         "::1",

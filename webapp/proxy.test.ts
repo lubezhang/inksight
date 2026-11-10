@@ -19,10 +19,10 @@ test("proxy rejects unknown hosts", () => {
 });
 
 test("proxy rejects backend-only host on the web app", () => {
-  const req = new NextRequest("https://web.inksight.site/config", {
+  const req = new NextRequest("https://inksight-backend.lubezhang.cn/config", {
     headers: {
-      host: "web.inksight.site",
-      "x-forwarded-host": "web.inksight.site",
+      host: "inksight-backend.lubezhang.cn",
+      "x-forwarded-host": "inksight-backend.lubezhang.cn",
       "x-forwarded-proto": "https",
     },
   });
