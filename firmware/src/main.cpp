@@ -1,5 +1,5 @@
 // Smart e-ink desktop companion powered by LLM
-// https://github.com/datascale-ai/inksight
+// https://github.com/lubezhang/inksight
 
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>

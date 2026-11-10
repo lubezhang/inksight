@@ -218,7 +218,7 @@ async def ensure_web_or_device_access(
 
 FIRMWARE_CHIP_FAMILY = "ESP32-C3"
 FIRMWARE_RELEASE_CACHE_TTL = int(os.getenv("FIRMWARE_RELEASE_CACHE_TTL", "120"))
-GITHUB_OWNER = os.getenv("GITHUB_OWNER", "datascale-ai")
+GITHUB_OWNER = os.getenv("GITHUB_OWNER", "lubezhang")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "inksight")
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases"
 _firmware_release_cache = {

@@ -102,7 +102,7 @@ export function Navbar() {
             </Link>
           ))}
           <a
-            href="https://github.com/datascale-ai/inksight"
+            href="https://github.com/lubezhang/inksight"
             target="_blank"
             rel="noopener noreferrer"
             className="text-ink-light hover:text-ink transition-colors"
@@ -146,7 +146,7 @@ export function Navbar() {
               </Link>
             ))}
             <a
-              href="https://github.com/datascale-ai/inksight"
+              href="https://github.com/lubezhang/inksight"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-sm text-ink-light hover:text-ink transition-colors py-1"

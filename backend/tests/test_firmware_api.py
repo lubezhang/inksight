@@ -28,7 +28,7 @@ async def client():
 def _sample_payload() -> dict:
     return {
         "source": "github_releases",
-        "repo": "datascale-ai/inksight",
+        "repo": "lubezhang/inksight",
         "cached": False,
         "count": 1,
         "releases": [
@@ -84,7 +84,7 @@ async def test_firmware_releases_latest_not_found(client, monkeypatch):
     async def _fake_loader(force_refresh: bool = False):
         return {
             "source": "github_releases",
-            "repo": "datascale-ai/inksight",
+            "repo": "lubezhang/inksight",
             "cached": False,
             "count": 0,
             "releases": [],

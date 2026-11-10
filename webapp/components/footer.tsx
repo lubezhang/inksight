@@ -32,7 +32,7 @@ export function Footer() {
             <ul className="space-y-2 text-sm text-ink-light">
               <li>
                 <a
-                  href="https://github.com/datascale-ai/inksight"
+                  href="https://github.com/lubezhang/inksight"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-ink transition-colors inline-flex items-center gap-1.5"
@@ -43,7 +43,7 @@ export function Footer() {
               </li>
               <li>
                 <a
-                  href="https://github.com/datascale-ai/inksight/blob/main/docs/hardware.md"
+                  href="https://github.com/lubezhang/inksight/blob/main/docs/hardware.md"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-ink transition-colors"
@@ -53,7 +53,7 @@ export function Footer() {
               </li>
               <li>
                 <a
-                  href="https://github.com/datascale-ai/inksight/blob/main/docs/api.md"
+                  href="https://github.com/lubezhang/inksight/blob/main/docs/api.md"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-ink transition-colors"

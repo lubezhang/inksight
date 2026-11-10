@@ -515,7 +515,7 @@ export default async function Home() {
               </Button>
             </Link>
             <a
-              href="https://github.com/datascale-ai/inksight"
+              href="https://github.com/lubezhang/inksight"
               target="_blank"
               rel="noopener noreferrer"
             >

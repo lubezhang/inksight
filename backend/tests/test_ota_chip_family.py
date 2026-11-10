@@ -82,7 +82,7 @@ async def test_trigger_ota_stores_both_urls(use_memory_db):
     - ota_original_url 存 GitHub CDN 原始 URL
     """
     mac = "11:22:33:44:55:66"
-    github_url = "https://github.com/datascale-ai/inksight/releases/download/v1.2.3/inksight-ESP32-C3-v1.2.3.bin"
+    github_url = "https://github.com/lubezhang/inksight/releases/download/v1.2.3/inksight-ESP32-C3-v1.2.3.bin"
     proxy_url = f"http://backend.example.com/api/firmware/download/v1.2.3?mac={mac}"
 
     await update_device_state(
@@ -113,7 +113,7 @@ async def test_firmware_download_uses_original_url_with_fallback(use_memory_db):
     - 旧记录没有 ota_original_url 时 fallback 到 ota_url
     """
     mac = "AA:BB:CC:DD:EE:FF"
-    github_url = "https://github.com/datascale-ai/inksight/releases/download/v1.2.3/firmware-ESP32-C3.bin"
+    github_url = "https://github.com/lubezhang/inksight/releases/download/v1.2.3/firmware-ESP32-C3.bin"
     proxy_url = f"http://backend.example.com/api/firmware/download/v1.2.3?mac={mac}"
 
     # Case 1: 新记录，有 ota_original_url
