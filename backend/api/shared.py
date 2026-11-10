@@ -163,7 +163,8 @@ def build_claim_url(request: Request, token: str) -> str:
         or request.url.netloc
         or ""
     ).strip()
-    if "inksight.site" not in host.lower():
+    host_l = host.lower()
+    if "inksight.lubezhang.cn" not in host_l and "inksight.site" not in host_l:
         return ""
     scheme = (request.headers.get("x-forwarded-proto") or request.url.scheme or "https").strip()
     return f"{scheme}://{host}/claim?token={token}"

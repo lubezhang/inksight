@@ -776,7 +776,7 @@ async def device_qr(
     import qrcode
 
     await ensure_web_or_device_access(request, mac, x_device_token, ink_session)
-    remote_base = base_url or "https://www.inksight.site"
+    remote_base = base_url or "https://inksight.lubezhang.cn"
     url = f"{remote_base}/remote?mac={mac}"
     qr = qrcode.QRCode(version=1, box_size=4, border=2)
     qr.add_data(url)
@@ -837,5 +837,5 @@ async def share_image(
 
     draw.line([(40, h - 50), (w - 40, h - 50)], fill=180, width=1)
     draw.text((40, h - 40), "InkSight | inco", fill=128, font=small_font)
-    draw.text((w - 180, h - 40), "www.inksight.site", fill=128, font=small_font)
+    draw.text((w - 210, h - 40), "inksight.lubezhang.cn", fill=128, font=small_font)
     return Response(content=image_to_png_bytes(img.convert("1")), media_type="image/png")

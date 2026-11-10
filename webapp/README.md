@@ -2,7 +2,7 @@
 
 InkSight 的 Next.js 官网与在线刷机前端（App Router）。
 
-- 公网主页: [https://www.inksight.site](https://www.inksight.site)
+- 公网主页: [https://inksight.lubezhang.cn/](https://inksight.lubezhang.cn/)
 - 本地默认地址: `http://localhost:3000`
 
 ## 功能范围

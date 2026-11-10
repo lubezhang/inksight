@@ -4,7 +4,7 @@
 
 > 一块真正适合放在桌面的电子墨水信息屏，并配有一个能一站式完成刷机、配置、预览与发现创意模式的网站。
 
-官网主页：[https://www.inksight.site](https://www.inksight.site)
+官网主页：[https://inksight.lubezhang.cn/](https://inksight.lubezhang.cn/)
 
 ![InkSight](images/intro.jpg)
 
@@ -73,7 +73,7 @@
 
 如果你想先感受和了解产品，可以直接访问官网去体验：
 
-- 官网：[`inksight.site`](https://www.inksight.site)
+- 官网：[`inksight.lubezhang.cn`](https://inksight.lubezhang.cn/)
 - 在线刷机：支持一键拉取我们发布的最新固件代码并部署，教程视频: [`刷机视频教程`](https://www.bilibili.com/video/BV1aWcQzQE3r/?spm_id_from=333.1387.homepage.video_card.click&vd_source=166ea338ef8c38d7904da906b88ef0b7)
 - 设备配置：当刷完设备之后，可以在这里配置显示的内容
 - 模式广场：可以分享自己的大作，也可以用上大神们设计的精美模式
@@ -128,11 +128,3 @@
 - 架构设计：[`docs/architecture.md`](docs/architecture.md)
 - API：[`docs/api.md`](docs/api.md)
 - 插件 / 扩展开发：[`docs/plugin-dev.md`](docs/plugin-dev.md)
-
-## 社区
-
-- Discord: [https://discord.gg/5Ne6D4YNf](https://discord.gg/5Ne6D4YNf)
-- QQ 群: [1026120682](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=kha7gD4FzS3ld_f9bx_TlLIj94Oyoip1&authKey=n4yACMiVaMagSs5HUH5HLw%2BhXdKRFjCDI4rAt7zdVym7yTeXwMxTkWqUjE9jzjXo&noverify=0&group_code=1026120682)
-- [BiliBili](https://www.bilibili.com/video/BV1nSNcziE7q/)
-
-![QQ 群二维码](images/QQ.jpg)

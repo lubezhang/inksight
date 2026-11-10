@@ -234,7 +234,7 @@ async def test_prefetch_missing_uploaded_image_does_not_fetch_remote():
         },
     }
     content = {
-        "image_url": "https://www.inksight.site/api/uploads/00000000-0000-4000-8000-000000000000",
+        "image_url": "https://inksight.lubezhang.cn/api/uploads/00000000-0000-4000-8000-000000000000",
     }
 
     with patch("core.json_content.httpx.AsyncClient") as mock_client:

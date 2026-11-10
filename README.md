@@ -4,7 +4,7 @@ English | [中文](README_ZH.md)
 
 > A calm e-ink desk companion with one website for flashing, configuration, preview, and discovering new modes.
 
-Official website: [https://www.inksight.site](https://www.inksight.site)
+Official website: [https://inksight.lubezhang.cn/](https://inksight.lubezhang.cn/)
 
 ![InkSight](images/intro_eng.jpg)
 
@@ -130,11 +130,3 @@ If you are a developer, want to run your own local deployment, or want to go bey
 - Architecture: [`docs/en/architecture.md`](docs/en/architecture.md)
 - API: [`docs/en/api.md`](docs/en/api.md)
 - Plugin / extension development: [`docs/en/plugin-dev.md`](docs/en/plugin-dev.md)
-
-## Community
-
-- Discord: [https://discord.gg/5Ne6D4YNf](https://discord.gg/5Ne6D4YNf)
-- QQ 群: [1026120682](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=kha7gD4FzS3ld_f9bx_TlLIj94Oyoip1&authKey=n4yACMiVaMagSs5HUH5HLw%2BhXdKRFjCDI4rAt7zdVym7yTeXwMxTkWqUjE9jzjXo&noverify=0&group_code=1026120682)
-- BiliBili: [https://www.bilibili.com/video/BV1nSNcziE7q/](https://www.bilibili.com/video/BV1nSNcziE7q/)
-
-![QQ Group QR Code](images/QQ_EN.jpg)

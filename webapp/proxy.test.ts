@@ -33,10 +33,10 @@ test("proxy rejects backend-only host on the web app", () => {
 });
 
 test("proxy allows official hosts", () => {
-  const req = new NextRequest("https://www.inksight.site/config", {
+  const req = new NextRequest("https://inksight.lubezhang.cn/config", {
     headers: {
-      host: "www.inksight.site",
-      "x-forwarded-host": "www.inksight.site",
+      host: "inksight.lubezhang.cn",
+      "x-forwarded-host": "inksight.lubezhang.cn",
       "x-forwarded-proto": "https",
     },
   });
@@ -44,7 +44,7 @@ test("proxy allows official hosts", () => {
   const res = proxy(req);
 
   assert.equal(res.status, 307);
-  assert.equal(res.headers.get("location"), "https://www.inksight.site/zh/config");
+  assert.equal(res.headers.get("location"), "https://inksight.lubezhang.cn/zh/config");
 });
 
 test("proxy allows localhost development hosts", () => {

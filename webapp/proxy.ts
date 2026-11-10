@@ -3,6 +3,7 @@ import { DEFAULT_LOCALE, isLocale, normalizeLocale } from "@/lib/i18n";
 
 const LOCALE_COOKIE = "ink_locale";
 const DEFAULT_ALLOWED_HOSTS = new Set([
+  "inksight.lubezhang.cn",
   "www.inksight.site",
   "inksight.site",
   "localhost",

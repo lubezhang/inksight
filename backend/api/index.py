@@ -23,6 +23,7 @@ from core.errors import InkSightError
 
 def _build_allowed_hosts() -> list[str]:
     hosts = [
+        "inksight.lubezhang.cn",
         "www.inksight.site",
         "inksight.site",
         "web.inksight.site",
@@ -53,6 +54,7 @@ def _build_cors_settings() -> tuple[list[str], str | None]:
     - INKSIGHT_CORS_ALLOW_LAN=1: allow any http(s) Origin on private IPv4 + localhost (dev only).
     """
     defaults = [
+        "https://inksight.lubezhang.cn",
         "https://www.inksight.site",
         "https://inksight.site",
         "http://localhost:3000",

@@ -362,7 +362,7 @@ applyLang();
 }
 
 var OFFICIAL_SERVER='https://web.inksight.site/';
-var OFFICIAL_CONFIG_URL='https://www.inksight.site/config';
+var OFFICIAL_CONFIG_URL='https://inksight.lubezhang.cn/config';
 var LOCAL_DEFAULT_SERVER='http://本地服务IP:8080';
 var LOCAL_DEFAULT_FRONTEND_PORT='3000';
 var ssid='',ctm=null,devMac='',srvUrl='',srvMode='official',pairCode='',frontendPort=LOCAL_DEFAULT_FRONTEND_PORT;

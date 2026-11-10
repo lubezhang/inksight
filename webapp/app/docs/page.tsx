@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Lightbulb, Zap } from "lucide-react";
 import { withLocalePath } from "@/lib/i18n";
@@ -9,18 +8,7 @@ export default async function DocsPage() {
   if (locale === "en") {
     return (
       <article className="docs-prose">
-        <div className="flex items-center justify-between gap-4 mb-8">
-          <h1 className="!mb-0">Quick Start</h1>
-          <div className="flex-shrink-0">
-            <Image
-              src="/images/QQ_EN.jpg"
-              alt="QQ Group"
-              width={192}
-              height={96}
-              className="h-24 w-auto object-contain rounded-md border border-ink/10 shadow-sm"
-            />
-          </div>
-        </div>
+        <h1>Quick Start</h1>
         <blockquote>
           InkSight is a calm e-ink desk companion. Start with the recommended hardware, flash the firmware, connect Wi-Fi,
           then configure content from the web app.
@@ -65,18 +53,7 @@ export default async function DocsPage() {
 
   return (
     <article className="docs-prose">
-      <div className="flex items-center justify-between gap-4 mb-8">
-        <h1 className="!mb-0">快速开始</h1>
-        <div className="flex-shrink-0">
-          <Image
-            src="/images/QQ.jpg"
-            alt="QQ Group"
-            width={192}
-            height={96}
-            className="h-24 w-auto object-contain rounded-md border border-ink/10 shadow-sm"
-          />
-        </div>
-      </div>
+      <h1>快速开始</h1>
       <blockquote>
         InkSight 是一块适合放在桌面的电子墨水信息屏。先准备推荐硬件，完成刷机与配网，再通过 WebApp 配置内容即可。
       </blockquote>
