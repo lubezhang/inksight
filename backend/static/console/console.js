@@ -235,6 +235,7 @@ function applyLang() {
   updatePageChrome();
   if (pairData) renderPairCodes(pairData);
   if (createdPair) renderCreatedPair();
+  if (deviceData) renderDevices(deviceData);
 }
 
 function setLang(next) {
@@ -243,7 +244,7 @@ function setLang(next) {
   localStorage.setItem("inksight_console_lang", lang);
   applyLang();
   if (currentPage === "home" && lastData) render(lastData);
-  else setStatus(t(authenticated ? "pairLoaded" : "statusNeedLogin"));
+  else setStatus(t(authenticated ? (currentPage === "devices" ? "devicesLoaded" : "pairLoaded") : "statusNeedLogin"));
 }
 
 function escapeHtml(value) {
@@ -381,10 +382,12 @@ function render(data) {
 }
 
 function updatePageChrome() {
-  $("pageTitle").textContent = t(currentPage === "home" ? "navHome" : "navPairing");
-  $("pageSubtitle").textContent = t(currentPage === "home" ? "homeSubtitle" : "pairingSubtitle");
+  const titleKey = { home: "navHome", pairing: "navPairing", devices: "navDevices" };
+  $("pageTitle").textContent = t(titleKey[currentPage]);
+  $("pageSubtitle").textContent = t(`${currentPage === "home" ? "home" : currentPage === "pairing" ? "pairing" : "devices"}Subtitle`);
   $("homePage").hidden = currentPage !== "home";
   $("pairingPage").hidden = currentPage !== "pairing";
+  $("devicesPage").hidden = currentPage !== "devices";
   document.querySelectorAll("[data-page]").forEach((link) => {
     if (link.dataset.page === currentPage) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
@@ -397,6 +400,7 @@ function setAuthenticated(value) {
   $("logout").hidden = !value;
   $("createPair").disabled = !value || mutating;
   if (value) return;
+  clearDevices();
   authEpoch++;
   pairRequest++;
   lastData = null;
@@ -428,10 +432,16 @@ async function api(path, options = {}) {
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 || res.status === 403) {
     setAuthenticated(false);
-    throw new Error(t(res.status === 401 ? "statusNeedLogin" : "statusNotRoot"));
+    const message = t(res.status === 401 ? "statusNeedLogin" : "statusNotRoot");
+    setStatus(message, true);
+    throw new Error(message);
   }
   if (!res.ok) {
     const detail = data.detail || data.error;
+    if (path.startsWith("/api/admin/devices") && res.status === 422) {
+      const fields = Array.isArray(detail) ? detail.map((item) => `${(item.loc || []).slice(1).join(".")}: ${item.msg}`).join("; ") : detail;
+      throw new Error(t("invalidDeviceInput", { fields: fields || "" }));
+    }
     const key = detail === "pair_code_conflict" ? "conflict" : detail === "pair_code_not_active" ? "notActive" : res.status === 422 ? "invalidInput" : "requestFailed";
     throw new Error(t(key, { status: res.status }));
   }
@@ -519,11 +529,11 @@ async function loadPairCodes() {
 }
 
 async function loadPage() {
-  await (currentPage === "home" ? loadConsole() : loadPairCodes());
+  await (currentPage === "home" ? loadConsole() : currentPage === "devices" ? loadDevices() : loadPairCodes());
 }
 
 function navigate() {
-  currentPage = location.hash === "#pairing" ? "pairing" : "home";
+  currentPage = location.hash === "#pairing" ? "pairing" : location.hash === "#devices" ? "devices" : "home";
   updatePageChrome();
   loadPage();
 }
@@ -639,6 +649,7 @@ function trackPageview() {
   }).catch(() => {});
 }
 
+initDevices();
 $("loginForm").addEventListener("submit", login);
 $("logout").addEventListener("click", logout);
 $("langZh").addEventListener("click", () => setLang("zh"));
