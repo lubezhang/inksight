@@ -8,31 +8,33 @@
     <script src="/static/console/console.js" defer></script>
   </head>
   <body>
+    <aside class="sidebar">
+      <a class="brand" href="#home"><span class="brand-mark" aria-hidden="true">墨</span><span>InkSight<small data-i18n="consoleLabel">管理控制台</small></span></a>
+      <nav aria-label="管理菜单">
+        <a href="#home" data-page="home" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3Z"/><path d="M9 20v-7h6v7"/></svg><span data-i18n="navHome">首页</span></a>
+        <a href="#pairing" data-page="pairing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="5"/><path d="m12 12 9 9m-5-5 3-3m-6 0 3-3"/></svg><span data-i18n="navPairing">配对码</span></a>
+      </nav>
+      <p class="sidebar-note" data-i18n="sidebarNote">设备、内容与每一次连接。</p>
+    </aside>
     <main>
-      <header class="hero">
-        <div>
-          <p class="eyebrow" data-i18n="eyebrow">InkSight Console</p>
-          <h1 data-i18n="title">Backend pulse.</h1>
-          <p class="sub" data-i18n="subtitle">
-            InkSight user growth, device activity, render health, content creation, and tracking data.
-          </p>
-        </div>
-        <div class="panel">
-          <div class="lang-switch" role="group" aria-label="Language">
-            <button id="langZh" type="button">中文</button>
-            <button id="langEn" type="button">EN</button>
-          </div>
-          <form id="loginForm" class="auth">
-            <input id="username" name="username" data-i18n-placeholder="username" placeholder="Username" autocomplete="username" />
-            <input id="password" name="password" type="password" data-i18n-placeholder="password" placeholder="Password" autocomplete="current-password" />
-            <button id="login" type="submit" data-i18n="signIn">Sign in</button>
-            <button id="logout" class="secondary" type="button" data-i18n="signOut">Sign out</button>
-          </form>
+      <header class="page-header">
+        <div><h1 id="pageTitle" tabindex="-1">首页</h1><p id="pageSubtitle" class="sub"></p></div>
+        <div class="header-actions">
+          <div class="lang-switch" role="group" aria-label="Language"><button id="langZh" type="button">中文</button><button id="langEn" type="button">EN</button></div>
+          <button id="refresh" type="button" class="secondary" data-i18n="refresh">刷新</button>
+          <button id="logout" class="secondary" type="button" data-i18n="signOut" hidden>退出</button>
         </div>
       </header>
-
-      <p id="status" class="status" data-i18n="statusIdle">Sign in with a root account to load protected metrics.</p>
-
+      <section id="authPanel" class="card auth-panel">
+        <div><h2 data-i18n="adminSignIn">管理员登录</h2><p class="sub" data-i18n="authHint">使用具有 root 权限的账号继续。</p></div>
+        <form id="loginForm" class="auth">
+          <label><span data-i18n="username">用户名</span><input id="username" name="username" autocomplete="username" required /></label>
+          <label><span data-i18n="password">密码</span><input id="password" name="password" type="password" autocomplete="current-password" required /></label>
+          <button id="login" type="submit" data-i18n="signIn">登录</button>
+        </form>
+      </section>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <div id="homePage">
       <section class="grid metrics" aria-live="polite">
         <article class="card"><p class="metric-label" data-i18n="metricUsers">Users</p><p id="usersTotal" class="metric-value">--</p><p id="usersNote" class="metric-note">--</p></article>
         <article class="card"><p class="metric-label" data-i18n="metricDeviceUsers">Active Device Users Today</p><p id="deviceUsers" class="metric-value">--</p><p id="deviceUsersNote" class="metric-note">--</p></article>
@@ -69,6 +71,34 @@
           Users come from users; DAU/WAU/MAU come from user_activity_events; device activity comes from heartbeats and render logs.
         </p>
       </section>
+      </div>
+      <section id="pairingPage" hidden>
+        <section class="card create-panel">
+          <div><h2 data-i18n="createTitle">生成配对码</h2><p class="sub" data-i18n="createHint">为设备生成新码，或登记设备屏幕上尚未上报的配对码。</p></div>
+          <form id="createPairForm" class="create-form">
+            <label><span data-i18n="deviceMac">设备 MAC</span><input id="pairMac" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17" pattern="([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}" required aria-describedby="createHelp" /></label>
+            <label><span data-i18n="customCode">指定配对码（可选）</span><input id="customCode" placeholder="267715" pattern="[A-Za-z0-9]{6,16}" maxlength="16" aria-describedby="createHelp" /></label>
+            <label><span data-i18n="validity">有效期</span><select id="pairTtl"><option value="10" data-i18n="ttl10">10 分钟</option><option value="30" data-i18n="ttl30">30 分钟</option><option value="60" data-i18n="ttl60">1 小时</option><option value="1440" data-i18n="ttl1440">24 小时</option></select></label>
+            <button type="submit" id="createPair" data-i18n="generate">生成配对码</button>
+          </form>
+          <p id="createHelp" class="hint" data-i18n="createHelp">留空则自动生成；指定码须为 6–16 位字母或数字。生成后交给用户登录并绑定设备。</p>
+          <div id="createdPair" class="created-pair" role="status" hidden>
+            <div><span data-i18n="newCode">新配对码</span><strong id="createdCode" class="mono"></strong><small id="createdExpiry"></small></div>
+            <button id="copyCreated" type="button" class="secondary" data-i18n="copyCode">复制配对码</button>
+          </div>
+        </section>
+        <section class="card records-panel">
+          <div class="section-heading"><h2 data-i18n="recordsTitle">配对记录</h2><p class="hint" data-i18n="recordsHint">保留近 30 天的已失效记录；时间以服务端为准。</p></div>
+          <form id="pairFilter" class="filter-form">
+            <label class="search-field"><span data-i18n="searchLabel">查找设备或配对码</span><input id="pairQuery" maxlength="64" data-i18n-placeholder="searchPlaceholder" placeholder="MAC / 配对码" /></label>
+            <label><span data-i18n="statusLabel">状态</span><select id="pairStatus"><option value="all" data-i18n="stateAll">全部</option><option value="active" data-i18n="stateActive">有效</option><option value="used" data-i18n="stateUsed">已使用</option><option value="expired" data-i18n="stateExpired">已失效</option></select></label>
+            <button type="submit" class="secondary" id="filterPair" data-i18n="search">查询</button>
+          </form>
+          <div id="pairRecords" class="table-wrap" aria-live="polite"></div>
+          <div class="pagination"><span id="pairCount" class="hint"></span><div><button id="pairPrev" type="button" class="secondary" data-i18n="previous">上一页</button><button id="pairNext" type="button" class="secondary" data-i18n="next">下一页</button></div></div>
+        </section>
+      </section>
+      <dialog id="expireDialog" aria-labelledby="expireTitle"><form method="dialog"><h2 id="expireTitle" data-i18n="expireTitle">让配对码失效？</h2><p id="expireDescription"></p><div class="dialog-actions"><button class="secondary" value="cancel" data-i18n="cancel">取消</button><button id="confirmExpire" value="confirm" data-i18n="confirmExpire">确认失效</button></div></form></dialog>
     </main>
   </body>
 </html>

@@ -261,6 +261,32 @@ InkSight 后端负责设备渲染、预览、配置存储、设备状态、统�
 
 解绑当前用户下的设备。
 
+#### 配对码管理（后台控制台）
+
+以下接口均要求已登录且用户角色为 `root`，支持 Session Cookie 或用户 Bearer Token。
+
+| 接口 | 用途 |
+|------|------|
+| `GET /api/admin/pair-codes` | 分页查询配对记录 |
+| `POST /api/admin/pair-codes` | 生成或登记配对码 |
+| `DELETE /api/admin/pair-codes/{id}` | 立即使一条有效、未使用的配对码失效 |
+
+查询参数：`q` 按 MAC 或配对码进行文本匹配，`status` 可选 `all`、`active`、`used`、`expired`，`page` 从 1 开始，`page_size` 默认 20、最大 100。返回 `items`、`total`、`page`、`page_size` 和 `server_time`。记录包含 `id`、`mac`、`pair_code`、`source`、`status` 及创建、失效、使用时间，不返回原始 claim token 或设备 Token。
+
+生成请求示例：
+
+```json
+{
+  "mac": "AA:BB:CC:DD:EE:FF",
+  "pair_code": "267715",
+  "ttl_minutes": 10
+}
+```
+
+`pair_code` 可省略或留空以自动生成，也可指定 6–16 位字母或数字；`ttl_minutes` 为 1–1440 分钟，默认 10。成功返回 HTTP 201 和配对码、MAC、有效期。有效码冲突返回 409；对已使用、已失效或不存在的记录执行失效操作也返回 409。
+
+生成配对码不会直接绑定用户。用户仍需登录后通过 `POST /api/claim/consume` 提交 `pair_code` 完成绑定；已有 owner 时沿用绑定申请流程。已使用及已失效记录保留 30 天，在后续生成配对码时清理。原有设备接口 `/api/device/{mac}/claim-token` 仍使用设备 Token 鉴权。
+
 ---
 
 ### 2.6 统计

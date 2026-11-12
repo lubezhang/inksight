@@ -1072,10 +1072,6 @@ async def create_claim_token(
     token = secrets.token_urlsafe(32)
     now_iso = now.isoformat()
     db = await get_main_db()
-    await db.execute(
-        "DELETE FROM device_claim_tokens WHERE used_at != '' OR expires_at <= ?",
-        (now_iso,),
-    )
     normalized_pair_code = _normalize_pair_code(preferred_pair_code)
     if normalized_pair_code:
         if not await _is_pair_code_available(db, normalized_pair_code, now_iso):
@@ -1083,6 +1079,11 @@ async def create_claim_token(
         pair_code = normalized_pair_code
     else:
         pair_code = await _generate_pair_code(db, now_iso)
+    # Keep recent expired/used records visible in the admin console.
+    await db.execute(
+        "DELETE FROM device_claim_tokens WHERE expires_at <= ?",
+        ((now - timedelta(days=30)).isoformat(),),
+    )
     await db.execute(
         """INSERT INTO device_claim_tokens
            (token_hash, mac, nonce, pair_code, source, expires_at, used_at, created_at)
@@ -1103,6 +1104,57 @@ async def create_claim_token(
         "pair_code": pair_code,
         "expires_at": (now + timedelta(minutes=ttl_minutes)).isoformat(),
     }
+
+
+async def list_claim_tokens(
+    query: str = "", status: str = "all", page: int = 1, page_size: int = 20,
+) -> dict:
+    """List pairing records without exposing device tokens or claim tokens."""
+    now = datetime.now().isoformat()
+    conditions = []
+    params = []
+    if query:
+        literal = query.upper().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        conditions.append("(mac LIKE ? ESCAPE '\\' OR pair_code LIKE ? ESCAPE '\\')")
+        params.extend([f"%{literal}%", f"%{literal}%"])
+    if status == "active":
+        conditions.append("used_at = '' AND expires_at > ?")
+        params.append(now)
+    elif status == "used":
+        conditions.append("used_at != ''")
+    elif status == "expired":
+        conditions.append("used_at = '' AND expires_at <= ?")
+        params.append(now)
+    where = " WHERE " + " AND ".join(conditions) if conditions else ""
+    db = await get_main_db()
+    cursor = await db.execute("SELECT COUNT(*) FROM device_claim_tokens" + where, params)
+    total = (await cursor.fetchone())[0]
+    cursor = await db.execute(
+        """SELECT token_hash AS id, mac, pair_code, source, created_at, expires_at, used_at,
+                  CASE WHEN used_at != '' THEN 'used'
+                       WHEN expires_at <= ? THEN 'expired' ELSE 'active' END AS status
+           FROM device_claim_tokens""" + where +
+        " ORDER BY created_at DESC, token_hash DESC LIMIT ? OFFSET ?",
+        [now, *params, page_size, (page - 1) * page_size],
+    )
+    columns = [column[0] for column in cursor.description]
+    return {
+        "items": [dict(zip(columns, row)) for row in await cursor.fetchall()],
+        "total": total, "page": page, "page_size": page_size, "server_time": now,
+    }
+
+
+async def expire_claim_token(token_id: str) -> bool:
+    """Expire exactly one unused active record, retaining it for inspection."""
+    now = datetime.now().isoformat()
+    db = await get_main_db()
+    cursor = await db.execute(
+        """UPDATE device_claim_tokens SET expires_at = ?
+           WHERE token_hash = ? AND used_at = '' AND expires_at > ?""",
+        (now, token_id, now),
+    )
+    await db.commit()
+    return cursor.rowcount == 1
 
 
 async def get_or_create_claim_token(
@@ -1213,11 +1265,14 @@ async def consume_claim_token(user_id: int, token: str = "", pair_code: str = ""
     token_hash, mac, expires_at, used_at = row
     if used_at or expires_at <= now:
         return {"status": "expired"}
-    await db.execute(
-        "UPDATE device_claim_tokens SET used_at = ? WHERE token_hash = ?",
-        (now, token_hash),
+    cursor = await db.execute(
+        """UPDATE device_claim_tokens SET used_at = ?
+           WHERE token_hash = ? AND used_at = '' AND expires_at > ?""",
+        (now, token_hash, datetime.now().isoformat()),
     )
     await db.commit()
+    if cursor.rowcount != 1:
+        return {"status": "expired"}
 
     existing = await get_device_membership(mac, user_id, include_pending=True)
     if existing and existing.get("status") == "active":

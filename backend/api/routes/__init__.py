@@ -1,4 +1,5 @@
 from .admin_analytics import router as admin_analytics_router
+from .admin_pairing import router as admin_pairing_router
 from .auth import router as auth_router
 from .config import router as config_router
 from .device import router as device_router
@@ -18,6 +19,7 @@ from .voice import router as voice_router
 api_routers = [
     render_router,
     admin_analytics_router,
+    admin_pairing_router,
     config_router,
     device_router,
     modes_router,
