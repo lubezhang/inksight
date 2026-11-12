@@ -7,6 +7,9 @@
 extern bool portalActive;
 extern bool wifiConnected;
 
+// Hotspot name from the chip MAC. Valid before WiFi.mode() is called.
+String portalApName();
+
 // Start the captive portal (AP mode + web server)
 void startCaptivePortal();
 

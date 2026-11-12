@@ -6,7 +6,9 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <DNSServer.h>
+#include <esp_mac.h>
 #include <esp_system.h>
+#include <esp_wifi.h>
 
 #include "../data/portal_html.h"
 
@@ -183,17 +185,32 @@ static void resetPortalProvisioningState() {
 
 // ── Start captive portal ────────────────────────────────────
 
+String portalApName() {
+    uint8_t mac[6] = {0};
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    char suffix[5];
+    snprintf(suffix, sizeof(suffix), "%02X%02X", mac[5], mac[5]);
+    return String("InkSight-") + suffix;
+}
+
 void startCaptivePortal() {
-    String mac = WiFi.macAddress();
-    String apName = "InkSight-" + mac.substring(mac.length() - 5);
-    apName.replace(":", "");
+    String apName = portalApName();
 
+    WiFi.persistent(false);
     WiFi.mode(WIFI_AP_STA);
-    WiFi.softAP(apName.c_str());
-    delay(100);
+    WiFi.setSleep(false);
+    WiFi.setTxPower(WIFI_POWER_19_5dBm);
+    delay(200);
+    bool ok = WiFi.softAP(apName.c_str(), nullptr, 6);
+    delay(300);
 
-    Serial.printf("AP started: %s  IP: %s\n",
-                  apName.c_str(), WiFi.softAPIP().toString().c_str());
+    wifi_config_t conf = {};
+    esp_wifi_get_config(WIFI_IF_AP, &conf);
+    int8_t txPower = 0;
+    esp_wifi_get_max_tx_power(&txPower);
+    Serial.printf("AP started: %s ok=%d IP: %s cfg=%s ch=%u tx=%d\n",
+                  apName.c_str(), ok ? 1 : 0, WiFi.softAPIP().toString().c_str(),
+                  reinterpret_cast<const char *>(conf.ap.ssid), conf.ap.channel, txPower);
 
     dnsServer.start(53, "*", WiFi.softAPIP());
 

@@ -185,6 +185,156 @@ void epdSleep() {
     epdAwake = false;
 }
 
+#elif defined(EPD_PANEL_42_WFH0420CZ35_UC8176)
+
+// WFH0420CZ35: one UC8176, 400x300 B/W.
+// OTP register sequence: 墨水屏/UC8176/epd.py MODE="otp" and WFH0420CZ35_技术文档.md section 4.1.
+// CS1 selects the panel. CS2 stays high on the shared 24-pin driver board. BUSY is active LOW.
+static_assert(W == 400 && H == 300 && EPD_BPP == 1,
+              "WFH0420CZ35 requires a 400x300 monochrome framebuffer");
+
+static bool epdAwake = false;
+static bool epdReady = false;
+static bool epdHasOld = false;
+static uint8_t epdOldFrame[IMG_BUF_LEN];
+
+static void spiWriteByte(uint8_t data) {
+    for (int bit = 7; bit >= 0; --bit) {
+        digitalWrite(PIN_EPD_MOSI, (data & (1 << bit)) ? HIGH : LOW);
+        digitalWrite(PIN_EPD_SCK, HIGH);
+        digitalWrite(PIN_EPD_SCK, LOW);
+    }
+}
+
+static void epdSendCommand(uint8_t cmd, const uint8_t *data = nullptr, size_t len = 0) {
+    digitalWrite(PIN_EPD_DC, LOW);
+    digitalWrite(PIN_EPD_CS, LOW);
+    spiWriteByte(cmd);
+    digitalWrite(PIN_EPD_CS, HIGH);
+    if (len == 0) return;
+    digitalWrite(PIN_EPD_DC, HIGH);
+    digitalWrite(PIN_EPD_CS, LOW);
+    for (size_t i = 0; i < len; ++i) spiWriteByte(data[i]);
+    digitalWrite(PIN_EPD_CS, HIGH);
+}
+
+static void epdSendValue(uint8_t cmd, uint8_t value) {
+    epdSendCommand(cmd, &value, 1);
+}
+
+static bool epdWaitBusy(const char *phase, unsigned long timeoutMs, unsigned long fallbackMs) {
+    unsigned long start = millis();
+    delay(1);
+    while (digitalRead(PIN_EPD_BUSY) == HIGH && millis() - start < 50) delay(1);
+    if (digitalRead(PIN_EPD_BUSY) == HIGH) {
+        Serial.printf("[UC8176] %s: BUSY not asserted, waiting %lu ms\n", phase, fallbackMs);
+        delay(fallbackMs);
+    }
+    while (digitalRead(PIN_EPD_BUSY) == LOW) {
+        if (millis() - start >= timeoutMs) {
+            Serial.printf("[UC8176] %s: BUSY timeout\n", phase);
+            return false;
+        }
+        delay(10);
+    }
+    Serial.printf("[UC8176] %s: %lu ms\n", phase, millis() - start);
+    return true;
+}
+
+static void epdWriteFrame(const uint8_t *image) {
+    digitalWrite(PIN_EPD_DC, HIGH);
+    digitalWrite(PIN_EPD_CS, LOW);
+    for (int i = 0; i < IMG_BUF_LEN; ++i) {
+        spiWriteByte(image ? image[i] : 0xFF);
+        if ((i & 0x3ff) == 0x3ff) delay(0);
+    }
+    digitalWrite(PIN_EPD_CS, HIGH);
+}
+
+void gpioInit() {
+    pinMode(PIN_EPD_CS, OUTPUT);
+    pinMode(PIN_EPD_CS2, OUTPUT);
+    digitalWrite(PIN_EPD_CS, HIGH);
+    digitalWrite(PIN_EPD_CS2, HIGH);
+    pinMode(PIN_EPD_DC, OUTPUT);
+    pinMode(PIN_EPD_RST, OUTPUT);
+    pinMode(PIN_EPD_SCK, OUTPUT);
+    pinMode(PIN_EPD_MOSI, OUTPUT);
+    pinMode(PIN_EPD_BUSY, INPUT_PULLUP);
+    pinMode(PIN_CFG_BTN, INPUT_PULLUP);
+    digitalWrite(PIN_EPD_RST, HIGH);
+    digitalWrite(PIN_EPD_SCK, LOW);
+}
+
+void epdInit() {
+    epdSleep();
+    epdReady = false;
+    digitalWrite(PIN_EPD_RST, HIGH); delay(10);
+    digitalWrite(PIN_EPD_RST, LOW); delay(10);
+    digitalWrite(PIN_EPD_RST, HIGH); delay(20);
+    epdAwake = true;
+
+    const uint8_t power[] = {0x03, 0x00, 0x2b, 0x2b};
+    epdSendCommand(0x01, power, sizeof(power));
+    const uint8_t boost[] = {0x17, 0x17, 0x17};
+    epdSendCommand(0x06, boost, sizeof(boost));
+    epdSendValue(0x30, 0x3a);
+    const uint8_t resolution[] = {0x01, 0x90, 0x01, 0x2c};
+    epdSendCommand(0x61, resolution, sizeof(resolution));
+    epdSendValue(0x82, 0x1a);
+    const uint8_t panel[] = {0x1f, 0x0d};
+    epdSendCommand(0x00, panel, sizeof(panel));
+    epdSendValue(0x50, 0x97);
+    epdSendCommand(0x04);
+    if (!epdWaitBusy("PON", 2000, 200)) {
+        epdSleep();
+        return;
+    }
+    epdReady = true;
+}
+
+void epdDisplay(const uint8_t *image) {
+    epdInit();
+    if (!epdReady) return;
+    epdSendCommand(0x10);
+    epdWriteFrame(epdHasOld ? epdOldFrame : nullptr);
+    epdSendCommand(0x13);
+    epdWriteFrame(image);
+    epdSendCommand(0x12);
+    if (epdWaitBusy("DRF", 30000, 10000)) {
+        memcpy(epdOldFrame, image, IMG_BUF_LEN);
+        epdHasOld = true;
+    }
+    epdSleep();
+}
+
+void epdInitFast() { epdInit(); }
+void epdDisplayFast(const uint8_t *image) { epdDisplay(image); }
+void epdDisplayDeepClear(const uint8_t *image) { epdDisplay(image); }
+void epdDisplay2bpp(const uint8_t *image2bpp) {
+    (void)image2bpp;
+    epdDisplay(imgBuf);
+}
+bool epdSupportsPartialRefresh() { return false; }
+void epdPartialDisplayWithOld(uint8_t *data, const uint8_t *oldData,
+                              int xStart, int yStart, int xEnd, int yEnd) {
+    (void)data; (void)oldData;
+    (void)xStart; (void)yStart; (void)xEnd; (void)yEnd;
+    epdDisplay(imgBuf);
+}
+void epdPartialDisplay(uint8_t *data, int xStart, int yStart, int xEnd, int yEnd) {
+    epdPartialDisplayWithOld(data, nullptr, xStart, yStart, xEnd, yEnd);
+}
+
+void epdSleep() {
+    if (!epdAwake) return;
+    epdReady = false;
+    epdSendCommand(0x02);
+    epdWaitBusy("POF", 2000, 100);
+    epdSendValue(0x07, 0xa5);
+    epdAwake = false;
+}
+
 #elif defined(EPD_PANEL_42_SSD1619A_2IC) || defined(EPD_PANEL_42_SSD1608_2IC)
 
 // ── Hanshow HINK 4.2" dual-IC panel (SSD1608 / SSD1619A, 400x300 B/W) ──

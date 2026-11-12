@@ -457,23 +457,18 @@ static void ledFeedback(const char *pattern) {
 
 static void enterPortalMode(PortalEntryReason reason) {
     g_userAborted = false;
-    String mac = WiFi.macAddress();
-    String apName = "InkSight-" + mac.substring(mac.length() - 5);
-    apName.replace(":", "");
+    String apName = portalApName();
 
     ctx.liveMode = false;
     clearTemporaryOnlineWindow();
     ctx.wantRefresh = false;
     ctx.btnPressStart = 0;
 
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_OFF);
-
     ledFeedback("portal");
+    startCaptivePortal();
     #if !VOICE_ONLY_BUILD
     showSetupScreen(apName.c_str());
     #endif
-    startCaptivePortal();
     ctx.state = DeviceState::PORTAL;
     ctx.portalStartedAt = millis();
     ctx.portalTimeoutMs = (reason == PortalEntryReason::AUTO_WIFI_FAILURE)
@@ -915,10 +910,7 @@ void setup() {
 
     if (forcePortal || !hasConfig || cfgServer.length() == 0) {
         Serial.println(forcePortal ? "[PORTAL] Button held -> portal" : "[PORTAL] No config -> portal");
-        String mac = WiFi.macAddress();
-        String apName = "InkSight-" + mac.substring(mac.length() - 5);
-        apName.replace(":", "");
-        Serial.printf("[PORTAL] AP: %s\n", apName.c_str());
+        Serial.printf("[PORTAL] AP: %s\n", portalApName().c_str());
         ledFeedback("portal");
         startCaptivePortal();
         gPortalMode = true;

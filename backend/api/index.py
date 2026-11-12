@@ -24,8 +24,6 @@ from core.errors import InkSightError
 def _build_allowed_hosts() -> list[str]:
     hosts = [
         "inksight.lubezhang.cn",
-        "www.inksight.site",
-        "inksight.site",
         "inksight-backend.lubezhang.cn",
         "localhost",
         "127.0.0.1",
@@ -55,8 +53,6 @@ def _build_cors_settings() -> tuple[list[str], str | None]:
     """
     defaults = [
         "https://inksight.lubezhang.cn",
-        "https://www.inksight.site",
-        "https://inksight.site",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:8081",
