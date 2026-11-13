@@ -7,6 +7,14 @@
 - 目标目录：`services/`
 - 适用范围：InkSight 后端全部业务逻辑、运行时脚本、测试、调试和部署入口
 
+### 当前工程进展
+
+`services/` 已建立 NestJS 11 + Express + TypeScript strict 基础工程，固定 Node.js 24。第 3 节中的业务 Module、基础设施、资源、可写数据、迁移、脚本和测试目录已创建。已实现环境配置及启动校验、全局 DTO 校验、CORS 白名单、`/api` 与 `/api/v1` 路由、优雅退出和健康检查，并提供开发、Inspector 调试、类型检查、格式、测试和构建命令。
+
+健康检查已具备 Controller 和 Service，其余业务模块当前仅提供模块入口；数据库、认证、Host/Origin 校验、限流、业务迁移和生产部署将在后续阶段完成。因此第 9 节的阶段任务继续保留未完成状态。开发方式见 [`services/README.md`](../services/README.md)。
+
+基础工程已通过 ESLint、格式检查、类型检查、构建、8 项单元测试和 6 项 E2E 测试。构建产物已在独立进程中验证 `/api/health`、`/api/v1/health` 返回 HTTP 200，并通过 SIGTERM 退出检查；这些结果仅覆盖基础框架，不代表业务迁移或真实设备验收完成。
+
 ## 1. 目标与边界
 
 本次迁移在 `services/` 中按照 NestJS 的模块、依赖注入和请求生命周期重新实现现有后端，技术栈改为 NestJS + TypeScript。代码按业务能力组织，重新划分 Controller、Service、业务规则、Repository 和外部 Provider 的职责。原 Python 文件、函数、全局单例和调用结构仅用于提取业务规则与验证行为，不作为新代码的组织模板。
@@ -210,8 +218,8 @@ flowchart TD
 
 ### 4.1 应用运行时
 
-- Node.js 20 LTS（或在实施开始时统一决定 Node 22 LTS），CI、开发和生产保持同一主版本。
-- NestJS、TypeScript strict、`@nestjs/config`、`@nestjs/platform-express`。
+- 当前基础工程固定 Node.js 24，使用 `.nvmrc` 和 `package.json` engines 声明；后续 CI、开发和生产保持同一主版本。
+- 当前基础工程使用 NestJS 11、TypeScript strict、`@nestjs/config`、`@nestjs/platform-express` 和 Jest。
 - 业务模块通过 `@Module` 组合、`@Injectable` Provider 和构造函数注入依赖；环境配置使用类型化 `ConfigService`，资源初始化与释放使用 Nest 生命周期 Hook。
 - 初期使用 Express 适配器，降低现有中间件、SSE、二进制响应和代理行为差异；性能稳定后再评估 Fastify。
 - `pino`/Nest Logger 输出结构化日志，保留 request id、设备 MAC、路由、状态码和耗时，禁止打印令牌、Cookie 和 API Key。
@@ -469,8 +477,8 @@ npm run dev
 
 ## 12. 当前待决策项
 
-1. 生产 Node 主版本选 20 LTS 还是 22 LTS。
-2. 初期 HTTP 适配器是否固定 Express。
+1. CI 和生产环境如何落实基础工程已选定的 Node.js 24 运行时。
+2. 当前已采用 Express；后续如需更换适配器，应补充协议兼容与性能验证。
 3. SQLite 驱动、ORM 和迁移工具的最终组合。
 4. 图像文字渲染和原生抖动的实现路径。
 5. 生产是否从 Vercel Python 完全迁移到常驻 Node，或拆分 realtime 服务。
